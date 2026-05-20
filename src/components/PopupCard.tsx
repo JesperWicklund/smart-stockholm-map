@@ -10,7 +10,6 @@ function PopupCard({ location }: Props) {
       <h2 className="text-lg font-bold">
         {location.name}
       </h2>
-      <span>{location.adress}</span>
 
       <p className="mt-2 text-sm">
         {location.description}

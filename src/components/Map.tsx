@@ -1,124 +1,79 @@
 import { useEffect, useRef } from 'react'
-
 import maplibregl from 'maplibre-gl'
+import 'maplibre-gl/dist/maplibre-gl.css'
 
-import { createRoot } from 'react-dom/client'
+import { slGreenLine } from '../data/slGreenLine'
 
-import PopupCard from './PopupCard'
+export default function Map() {
+  const ref = useRef<HTMLDivElement | null>(null)
 
-import type { Location } from '../types/location'
-
-type Props = {
-  selectedLocation: Location | null
-  locations: Location[]
-}
-
-function Map({
-  selectedLocation,
-  locations,
-}: Props) {
-  const mapContainer =
-    useRef<HTMLDivElement | null>(null)
-
-  const mapRef =
-    useRef<maplibregl.Map | null>(null)
-
-  const markersRef = useRef<maplibregl.Marker[]>(
-    []
-  )
-
-  // INIT MAP
   useEffect(() => {
-    if (!mapContainer.current) return
+    if (!ref.current) return
 
     const map = new maplibregl.Map({
-      container: mapContainer.current,
+      container: ref.current,
       style:
         'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
-      center: [18.0686, 59.3293],
-      zoom: 11,
+      center: [18.05, 59.33],
+      zoom: 9,
     })
 
-    map.addControl(
-      new maplibregl.NavigationControl(),
-      'top-right'
-    )
+    map.addControl(new maplibregl.NavigationControl())
 
-    mapRef.current = map
+    map.on('load', () => {
+      // SOURCE
+      map.addSource('sl-green', {
+        type: 'geojson',
+        data: slGreenLine,
+      })
 
-    return () => {
-      map.remove()
-    }
-  }, [])
+      // POINTS
+      map.addLayer({
+        id: 'stations',
+        type: 'circle',
+        source: 'sl-green',
+        paint: {
+          'circle-radius': 7,
+          'circle-color': '#22c55e',
+          'circle-stroke-width': 2,
+          'circle-stroke-color': '#fff',
+        },
+      })
 
-  // UPDATE MARKERS WHEN FILTER CHANGES
-  useEffect(() => {
-    if (!mapRef.current) return
+      // LABELS
+      map.addLayer({
+        id: 'labels',
+        type: 'symbol',
+        source: 'sl-green',
+        layout: {
+          'text-field': ['get', 'name'],
+          'text-size': 12,
+          'text-offset': [0, 1.2],
+        },
+        paint: {
+          'text-color': '#ffffff',
+        },
+      })
 
-    const map = mapRef.current
-
-    // REMOVE OLD MARKERS
-    markersRef.current.forEach((marker) =>
-      marker.remove()
-    )
-
-    markersRef.current = []
-
-    // CREATE NEW MARKERS
-    locations.forEach((location) => {
-      const popupNode =
-        document.createElement('div')
-
-      createRoot(popupNode).render(
-        <PopupCard location={location} />
+      // FIT ALL STATIONS (CRITICAL)
+      const coords = slGreenLine.features.map(
+        (f: any) => f.geometry.coordinates
       )
 
-      const popup = new maplibregl.Popup({
-        offset: 25,
-      }).setDOMContent(popupNode)
+      const lons = coords.map((c: any) => c[0])
+      const lats = coords.map((c: any) => c[1])
 
-      const marker = new maplibregl.Marker({
-        color: '#48bb78',
-      })
-        .setLngLat(location.coordinates)
-        .setPopup(popup)
-        .addTo(map)
-
-      markersRef.current.push(marker)
+      map.fitBounds(
+        [
+          [Math.min(...lons), Math.min(...lats)],
+          [Math.max(...lons), Math.max(...lats)],
+        ],
+        { padding: 80 }
+      )
     })
-  }, [locations])
 
-  // FLY TO LOCATION
-  useEffect(() => {
-    if (!mapRef.current) return
+    return () => map.remove()
+  }, [])
 
-    const map = mapRef.current
-
-    // RESET VIEW
-    if (!selectedLocation) {
-      map.flyTo({
-        center: [18.0686, 59.3293],
-        zoom: 11,
-        speed: 1.2,
-      })
-
-      return
-    }
-
-    // FLY TO SELECTED
-    map.flyTo({
-      center: selectedLocation.coordinates,
-      zoom: 14,
-      speed: 1.2,
-    })
-  }, [selectedLocation])
-
-  return (
-    <div
-      ref={mapContainer}
-      className="h-full w-full"
-    />
-  )
+  return <div ref={ref} className="w-full h-full" />
 }
-
-export default Map
